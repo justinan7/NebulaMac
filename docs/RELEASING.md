@@ -19,9 +19,9 @@ Different identity or profile name? Pass `SIGN_ID=...` or `NOTARY_PROFILE=...` t
 
 1. Bump `CFBundleShortVersionString` and `CFBundleVersion` in `NebulaMac/Info.plist`.
 2. `make test`
-3. `make release` — builds a universal app, signs, notarizes (a few minutes), and writes the new version and hashes into `packaging/homebrew/nebulamac.rb` and `flake.nix`.
-4. Commit `Info.plist`, the cask and `flake.nix`; push.
-5. `make publish` — tags `v<version>` and uploads the dmg and zip to GitHub Releases.
+3. `make release` — builds a universal app, signs, notarizes (a few minutes), writes the dmg and zip to `dist/`, and puts the new version and hashes into `packaging/homebrew/nebulamac.rb` and `flake.nix`.
+4. Commit `Info.plist`, the cask and `flake.nix`, merge to `main` and push. (The Nix install and the README read `main`.)
+5. `make publish` (from `main`) — tags `v<version>` and uploads the dmg and zip to GitHub Releases. It refuses while the hashes are placeholders or uncommitted.
 6. Copy `packaging/homebrew/nebulamac.rb` to the tap's `Casks/` and push.
 7. Smoke test: open the dmg on another Mac (no Gatekeeper warning) and `brew install --cask justinan7/tap/nebulamac`.
 

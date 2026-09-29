@@ -36,7 +36,7 @@ Only have one network? `~/.nebula/config.yml` works too.
 
 ## Skip the password prompt (optional)
 
-Connecting needs admin rights, so macOS asks for your password each time. To stop that, copy the command from **Settings → Advanced** and run it once in Terminal. It only allows the exact start and stop commands for your networks. Run it again after adding a network.
+Connecting needs admin rights, so macOS asks for your password each time. To stop that, copy the command from **Settings → Advanced** and run it once in Terminal. It only allows the exact start and stop commands for your networks in `~/.nebula/meshes/`. Run it again after adding a network. (A lone `~/.nebula/config.yml` isn't covered — move it to `~/.nebula/meshes/default.yml` if you want this.)
 
 ## Build from source
 

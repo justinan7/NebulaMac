@@ -8,3 +8,4 @@ DerivedData/
 Package.resolved
 *.xcuserstate
 .superpowers/
+dist/

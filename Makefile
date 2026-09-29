@@ -8,7 +8,8 @@ VERSION := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString
 ARCHS = --arch arm64 --arch x86_64
 SIGN_ID ?= Developer ID Application: Justin Nunn (E6YX7F4KUC)
 NOTARY_PROFILE ?= nebulamac-notary
-DIST = .build/release
+# Not .build/release: SwiftPM owns that symlink and wipes it on the next release build.
+DIST = dist
 ZIP = $(DIST)/$(APP_NAME)-$(VERSION).zip
 DMG = $(DIST)/$(APP_NAME)-$(VERSION).dmg
 
@@ -29,6 +30,7 @@ build:
 
 bundle: build
 	@echo "Creating app bundle..."
+	rm -rf "$(APP_BUNDLE)"
 	mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
 	mkdir -p "$(APP_BUNDLE)/Contents/Resources"
 	cp "$(BUILD_DIR)/$(APP_NAME)" "$(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)"
@@ -82,10 +84,13 @@ release: bundle
 	codesign --force --options runtime --timestamp --sign "$(SIGN_ID)" "$(APP_BUNDLE)"
 	codesign --verify --strict --verbose=2 "$(APP_BUNDLE)"
 	@echo "Notarizing app..."
-	ditto -c -k --keepParent "$(APP_BUNDLE)" "$(ZIP)"
+	ditto -c -k --norsrc --keepParent "$(APP_BUNDLE)" "$(ZIP)"
 	xcrun notarytool submit "$(ZIP)" --keychain-profile "$(NOTARY_PROFILE)" --wait
 	xcrun stapler staple "$(APP_BUNDLE)"
-	rm "$(ZIP)" && ditto -c -k --keepParent "$(APP_BUNDLE)" "$(ZIP)"
+	rm "$(ZIP)" && ditto -c -k --norsrc --keepParent "$(APP_BUNDLE)" "$(ZIP)"
+	@# The zip must still verify after a plain unzip (Nix and curl users don't use ditto).
+	rm -rf "$(DIST)/unzip-check" && mkdir -p "$(DIST)/unzip-check" && /usr/bin/unzip -q "$(ZIP)" -d "$(DIST)/unzip-check"
+	codesign --verify --strict "$(DIST)/unzip-check/$(APP_NAME).app" && rm -rf "$(DIST)/unzip-check"
 	@echo "Building dmg..."
 	rm -rf "$(DIST)/dmg" && mkdir -p "$(DIST)/dmg"
 	cp -R "$(APP_BUNDLE)" "$(DIST)/dmg/"
@@ -96,6 +101,7 @@ release: bundle
 	xcrun notarytool submit "$(DMG)" --keychain-profile "$(NOTARY_PROFILE)" --wait
 	xcrun stapler staple "$(DMG)"
 	spctl -a -vv "$(APP_BUNDLE)"
+	xcrun stapler validate "$(APP_BUNDLE)"
 	xcrun stapler validate "$(DMG)"
 	@sha=$$(shasum -a 256 "$(ZIP)" | cut -d' ' -f1); \
 	sri="sha256-$$(openssl dgst -sha256 -binary "$(ZIP)" | base64)"; \
@@ -107,8 +113,10 @@ release: bundle
 
 # Tag and upload to GitHub Releases (public).
 publish:
+	@if grep -qE '0{64}|sha256-A{43}=' packaging/homebrew/nebulamac.rb flake.nix; then echo "Cask/flake still have placeholder hashes -- run 'make release' first."; exit 1; fi
+	@git diff --quiet HEAD -- packaging/homebrew/nebulamac.rb flake.nix NebulaMac/Info.plist || { echo "Commit the cask, flake and Info.plist first."; exit 1; }
 	@test -f "$(ZIP)" -a -f "$(DMG)" || { echo "Run 'make release' first."; exit 1; }
-	git tag -a "v$(VERSION)" -m "NebulaMac $(VERSION)"
+	git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null || git tag -a "v$(VERSION)" -m "NebulaMac $(VERSION)"
 	git push origin "v$(VERSION)"
 	gh release create "v$(VERSION)" "$(DMG)" "$(ZIP)" --title "NebulaMac $(VERSION)" --generate-notes
 
