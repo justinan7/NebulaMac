@@ -4,6 +4,8 @@ APP_BUNDLE = .build/$(APP_NAME).app
 INSTALL_DIR = /Applications
 ICONSET_DIR = .build/AppIcon.iconset
 ICON_SRC = NebulaMac/Assets.xcassets/AppIcon.appiconset
+VERSION := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" NebulaMac/Info.plist)
+ARCHS = --arch arm64 --arch x86_64
 
 # The asset catalog needs actool, which ships with full Xcode but not the Command Line Tools.
 XCODE_DEV ?= $(firstword $(wildcard /Applications/Xcode.app/Contents/Developer /Applications/Xcode-beta.app/Contents/Developer))
@@ -13,12 +15,12 @@ endif
 
 # Ask SwiftPM where the release binary is: Xcode's build system and the Command Line Tools
 # use different folders. (Recursive '=', so it's only evaluated by targets that need it.)
-BUILD_DIR = $(shell DEVELOPER_DIR="$(DEVELOPER_DIR)" swift build -c release --show-bin-path)
+BUILD_DIR = $(shell DEVELOPER_DIR="$(DEVELOPER_DIR)" swift build -c release $(ARCHS) --show-bin-path)
 
-.PHONY: build bundle install uninstall clean test
+.PHONY: build bundle install uninstall clean test release publish
 
 build:
-	swift build -c release
+	swift build -c release $(ARCHS)
 
 bundle: build
 	@echo "Creating app bundle..."
@@ -26,6 +28,7 @@ bundle: build
 	mkdir -p "$(APP_BUNDLE)/Contents/Resources"
 	cp "$(BUILD_DIR)/$(APP_NAME)" "$(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)"
 	cp NebulaMac/Info.plist "$(APP_BUNDLE)/Contents/Info.plist"
+	cp scripts/install-sudoers.sh "$(APP_BUNDLE)/Contents/Resources/install-sudoers.sh"
 	@# Add CFBundleExecutable and CFBundlePackageType if missing
 	@/usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $(APP_NAME)" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
 	@/usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true

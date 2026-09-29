@@ -15,10 +15,8 @@ let package = Package(
             name: "NebulaMac",
             dependencies: ["NebulaMacCore"],
             path: "NebulaMac",
-            exclude: ["Info.plist"],
-            resources: [
-                .process("Assets.xcassets")
-            ]
+            // The app icon PNGs are turned into AppIcon.icns by the Makefile.
+            exclude: ["Info.plist", "Assets.xcassets"]
         ),
         .testTarget(
             name: "NebulaMacCoreTests",
