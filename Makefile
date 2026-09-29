@@ -6,6 +6,11 @@ ICONSET_DIR = .build/AppIcon.iconset
 ICON_SRC = NebulaMac/Assets.xcassets/AppIcon.appiconset
 VERSION := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" NebulaMac/Info.plist)
 ARCHS = --arch arm64 --arch x86_64
+SIGN_ID ?= Developer ID Application: Justin Nunn (E6YX7F4KUC)
+NOTARY_PROFILE ?= nebulamac-notary
+DIST = .build/release
+ZIP = $(DIST)/$(APP_NAME)-$(VERSION).zip
+DMG = $(DIST)/$(APP_NAME)-$(VERSION).dmg
 
 # The asset catalog needs actool, which ships with full Xcode but not the Command Line Tools.
 XCODE_DEV ?= $(firstword $(wildcard /Applications/Xcode.app/Contents/Developer /Applications/Xcode-beta.app/Contents/Developer))
@@ -70,6 +75,42 @@ uninstall:
 clean:
 	swift package clean
 	rm -rf "$(APP_BUNDLE)"
+
+# Signed + notarized zip and dmg; updates the cask and flake hashes. See docs/RELEASING.md.
+release: bundle
+	rm -rf "$(DIST)" && mkdir -p "$(DIST)"
+	codesign --force --options runtime --timestamp --sign "$(SIGN_ID)" "$(APP_BUNDLE)"
+	codesign --verify --strict --verbose=2 "$(APP_BUNDLE)"
+	@echo "Notarizing app..."
+	ditto -c -k --keepParent "$(APP_BUNDLE)" "$(ZIP)"
+	xcrun notarytool submit "$(ZIP)" --keychain-profile "$(NOTARY_PROFILE)" --wait
+	xcrun stapler staple "$(APP_BUNDLE)"
+	rm "$(ZIP)" && ditto -c -k --keepParent "$(APP_BUNDLE)" "$(ZIP)"
+	@echo "Building dmg..."
+	rm -rf "$(DIST)/dmg" && mkdir -p "$(DIST)/dmg"
+	cp -R "$(APP_BUNDLE)" "$(DIST)/dmg/"
+	ln -s /Applications "$(DIST)/dmg/Applications"
+	hdiutil create -volname "$(APP_NAME)" -srcfolder "$(DIST)/dmg" -format UDZO -ov "$(DMG)"
+	rm -rf "$(DIST)/dmg"
+	codesign --sign "$(SIGN_ID)" --timestamp "$(DMG)"
+	xcrun notarytool submit "$(DMG)" --keychain-profile "$(NOTARY_PROFILE)" --wait
+	xcrun stapler staple "$(DMG)"
+	spctl -a -vv "$(APP_BUNDLE)"
+	xcrun stapler validate "$(DMG)"
+	@sha=$$(shasum -a 256 "$(ZIP)" | cut -d' ' -f1); \
+	sri="sha256-$$(openssl dgst -sha256 -binary "$(ZIP)" | base64)"; \
+	sed -i '' -E "s/^  version \".*\"/  version \"$(VERSION)\"/; s/^  sha256 \".*\"/  sha256 \"$$sha\"/" packaging/homebrew/nebulamac.rb; \
+	sed -i '' -E "s|^      version = \".*\";|      version = \"$(VERSION)\";|; s|^      hash = \".*\";|      hash = \"$$sri\";|" flake.nix; \
+	echo ""; echo "Release $(VERSION) ready in $(DIST):"; ls -1 "$(DIST)"; \
+	echo "zip sha256: $$sha"; echo "zip SRI:    $$sri"; \
+	echo "Next: commit packaging/homebrew/nebulamac.rb + flake.nix, then 'make publish'."
+
+# Tag and upload to GitHub Releases (public).
+publish:
+	@test -f "$(ZIP)" -a -f "$(DMG)" || { echo "Run 'make release' first."; exit 1; }
+	git tag -a "v$(VERSION)" -m "NebulaMac $(VERSION)"
+	git push origin "v$(VERSION)"
+	gh release create "v$(VERSION)" "$(DMG)" "$(ZIP)" --title "NebulaMac $(VERSION)" --generate-notes
 
 icon:
 	mkdir -p .build
