@@ -2,7 +2,7 @@
 # To use:
 #   1. put this network's ca.crt / host.crt / host.key in ~/.nebula/<name>/
 #   2. replace YOU, <name>, LIGHTHOUSE_MESH_IP and LIGHTHOUSE_PUBLIC_ADDR below
-#   3. save as ~/.nebula/meshes/<name>.yml and (optionally) re-run scripts/install-sudoers.sh
+#   3. save as ~/.nebula/meshes/<name>.yml and (optionally) re-run the command in Settings -> Advanced
 # Paths must be absolute: nebula runs as root and does not expand ~.
 pki:
   ca: /Users/YOU/.nebula/<name>/ca.crt
