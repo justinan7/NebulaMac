@@ -7,7 +7,7 @@
     let
       # `make release` updates these two lines.
       version = "1.1.0";
-      hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      hash = "sha256-w1IQws/xO9hWlrxUrafFF24aqIZTqsfPx83P3F3spKo=";
       systems = [ "aarch64-darwin" "x86_64-darwin" ];
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in {

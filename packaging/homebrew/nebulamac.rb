@@ -2,7 +2,7 @@
 # `make release` updates version and sha256 here.
 cask "nebulamac" do
   version "1.1.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "c35210c2cff13bd85696bc54ada7c5176e1aa88653aac7cfc7cdcfdc5deca4aa"
 
   url "https://github.com/justinan7/NebulaMac/releases/download/v#{version}/NebulaMac-#{version}.zip"
   name "NebulaMac"
