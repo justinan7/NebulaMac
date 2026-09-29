@@ -1,0 +1,45 @@
+# Example NebulaMac mesh config -- not loaded as-is (only *.yml / *.yaml in ~/.nebula/meshes are).
+# To use:
+#   1. put this network's ca.crt / host.crt / host.key in ~/.nebula/<name>/
+#   2. replace YOU, <name>, LIGHTHOUSE_MESH_IP and LIGHTHOUSE_PUBLIC_ADDR below
+#   3. save as ~/.nebula/meshes/<name>.yml and (optionally) re-run scripts/install-sudoers.sh
+# Paths must be absolute: nebula runs as root and does not expand ~.
+pki:
+  ca: /Users/YOU/.nebula/<name>/ca.crt
+  cert: /Users/YOU/.nebula/<name>/host.crt
+  key: /Users/YOU/.nebula/<name>/host.key
+
+static_host_map:
+  "LIGHTHOUSE_MESH_IP": ["LIGHTHOUSE_PUBLIC_ADDR:4242"]
+
+lighthouse:
+  am_lighthouse: false
+  interval: 60
+  hosts:
+    - "LIGHTHOUSE_MESH_IP"
+
+listen:
+  host: 0.0.0.0
+  port: 0          # random port: required to run alongside another mesh
+
+punchy:
+  punch: true
+  respond: true
+
+tun:
+  # dev: leave unset so macOS picks a free utun (two meshes can't share one)
+  mtu: 1300
+
+logging:
+  level: info
+  format: text
+
+firewall:
+  outbound:
+    - port: any
+      proto: any
+      host: any
+  inbound:
+    - port: any
+      proto: icmp
+      host: any
