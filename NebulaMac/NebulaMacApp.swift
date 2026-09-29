@@ -18,6 +18,16 @@ struct NebulaMacApp: App {
     /// Inner subscriptions — one per active connection's $state.
     @State private var perConnectionCancellables = Set<AnyCancellable>()
 
+    init() {
+        // Point at wherever nebula is actually installed (Homebrew, Nix, ...) unless the
+        // stored path already works. Runs before any @AppStorage reader is created.
+        let defaults = UserDefaults.standard
+        for (key, name) in [("nebulaPath", "nebula"), ("nebulaCertPath", "nebula-cert")] {
+            let stored = defaults.string(forKey: key) ?? "/usr/local/bin/\(name)"
+            defaults.set(BinaryLocator.resolve(stored: stored, name: name), forKey: key)
+        }
+    }
+
     private var canUseNotifications: Bool {
         Bundle.main.bundleIdentifier != nil
     }

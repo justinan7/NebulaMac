@@ -3,11 +3,17 @@
 # mesh config in ~/.nebula/meshes/ (start, stop, force-stop). Re-run after adding or
 # renaming a mesh; until then NebulaMac falls back to the macOS password prompt.
 #
-# Usage: scripts/install-sudoers.sh [--dry-run] [--nebula PATH]
+# Usage: install-sudoers.sh [--dry-run] [--nebula PATH]   (default: auto-detected)
 # Run as your normal user -- it calls sudo itself. Works with macOS's stock bash 3.2.
 set -euo pipefail
 
+# Default: first nebula found where Homebrew, a manual install or Nix puts it.
+SEARCH="${NEBULAMAC_NEBULA_SEARCH:-/opt/homebrew/bin:/usr/local/bin:$HOME/.nix-profile/bin:/run/current-system/sw/bin}"
 NEBULA=/usr/local/bin/nebula
+IFS=: read -r -a search_dirs <<< "$SEARCH"
+for dir in "${search_dirs[@]}"; do
+    if [ -x "$dir/nebula" ]; then NEBULA="$dir/nebula"; break; fi
+done
 PKILL=/usr/bin/pkill
 MESH_DIR="${NEBULAMAC_MESH_DIR:-$HOME/.nebula/meshes}"
 TARGET=/etc/sudoers.d/nebulamac
