@@ -8,7 +8,7 @@ enum SwirlIconRenderer {
     static let size = NSSize(width: 18, height: 18)
 
     /// `pulse` (0...1) drives the brightness of connecting arms.
-    static func image(for model: SwirlModel, pulse: CGFloat = 1) -> NSImage {
+    static func image(for model: SwirlModel, pulse: CGFloat = 1, size: NSSize = size) -> NSImage {
         let image = NSImage(size: size, flipped: true) { rect in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
             ctx.scaleBy(x: rect.width / 24, y: rect.height / 24)

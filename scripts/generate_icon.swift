@@ -1,192 +1,77 @@
-#!/usr/bin/swift
+// Generates the app icon PNGs from the same swirl geometry as the menu bar icon.
+// Usage: make icon
+//   (swiftc -parse-as-library -o .build/generate_icon NebulaMacCore/Swirl.swift scripts/generate_icon.swift
+//    && .build/generate_icon NebulaMac/Assets.xcassets/AppIcon.appiconset)
 import AppKit
-import CoreGraphics
 
-func drawIcon(size: CGFloat) -> NSImage {
-    let image = NSImage(size: NSSize(width: size, height: size))
-    image.lockFocus()
+func drawIcon(px: Int) -> NSBitmapImageRep {
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px,
+                               bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                               colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    let ctx = NSGraphicsContext.current!.cgContext
+    let s = CGFloat(px)
 
-    guard let ctx = NSGraphicsContext.current?.cgContext else {
-        image.unlockFocus()
-        return image
-    }
+    // macOS icon grid: 824/1024 body with ~185/1024 corner radius.
+    let inset = s * 100 / 1024
+    let body = CGRect(x: inset, y: inset, width: s - 2 * inset, height: s - 2 * inset)
+    let bodyPath = CGPath(roundedRect: body, cornerWidth: s * 185 / 1024, cornerHeight: s * 185 / 1024, transform: nil)
 
-    let rect = CGRect(x: 0, y: 0, width: size, height: size)
-    let center = CGPoint(x: size / 2, y: size / 2)
-    let radius = size * 0.42
-
-    // Background: rounded rectangle with deep space gradient
-    let cornerRadius = size * 0.22
-    let bgPath = CGPath(roundedRect: rect.insetBy(dx: size * 0.02, dy: size * 0.02),
-                        cornerWidth: cornerRadius, cornerHeight: cornerRadius,
-                        transform: nil)
-    ctx.addPath(bgPath)
+    // Body: deep navy, slightly lighter at the top.
+    ctx.saveGState()
+    ctx.addPath(bodyPath)
     ctx.clip()
+    let space = CGColorSpaceCreateDeviceRGB()
+    let bg = CGGradient(colorsSpace: space, colors: [
+        CGColor(red: 0.09, green: 0.11, blue: 0.17, alpha: 1),
+        CGColor(red: 0.03, green: 0.04, blue: 0.07, alpha: 1),
+    ] as CFArray, locations: [0, 1])!
+    ctx.drawLinearGradient(bg, start: CGPoint(x: 0, y: body.maxY), end: CGPoint(x: 0, y: body.minY), options: [])
 
-    // Radial gradient background: deep purple to dark navy
-    let colorSpace = CGColorSpaceCreateDeviceRGB()
-    let bgColors = [
-        CGColor(red: 0.25, green: 0.10, blue: 0.45, alpha: 1.0),
-        CGColor(red: 0.06, green: 0.04, blue: 0.15, alpha: 1.0)
-    ] as CFArray
-    if let gradient = CGGradient(colorsSpace: colorSpace, colors: bgColors, locations: [0.0, 1.0]) {
-        ctx.drawRadialGradient(gradient,
-                               startCenter: CGPoint(x: center.x * 0.85, y: center.y * 1.15),
-                               startRadius: 0,
-                               endCenter: center,
-                               endRadius: size * 0.75,
-                               options: .drawsAfterEndLocation)
-    }
+    // Map the 24×24 swirl design space into the body, flipped to match the menu bar drawing.
+    let scale = body.width * 0.78 / 24
+    ctx.translateBy(x: s / 2, y: s / 2)
+    ctx.scaleBy(x: scale, y: -scale)
+    ctx.translateBy(x: -12, y: -12)
 
-    // Subtle nebula glow in the center
-    let glowColors = [
-        CGColor(red: 0.4, green: 0.2, blue: 0.8, alpha: 0.3),
-        CGColor(red: 0.2, green: 0.1, blue: 0.5, alpha: 0.0)
-    ] as CFArray
-    if let glowGrad = CGGradient(colorsSpace: colorSpace, colors: glowColors, locations: [0.0, 1.0]) {
-        ctx.drawRadialGradient(glowGrad,
-                               startCenter: center,
-                               startRadius: 0,
-                               endCenter: center,
-                               endRadius: radius * 0.8,
-                               options: [])
-    }
+    // Soft glow behind the core only.
+    let glow = CGGradient(colorsSpace: space, colors: [
+        CGColor(red: 0.75, green: 0.85, blue: 1, alpha: 0.55),
+        CGColor(red: 0.75, green: 0.85, blue: 1, alpha: 0),
+    ] as CFArray, locations: [0, 1])!
+    ctx.drawRadialGradient(glow, startCenter: SwirlGeometry.center, startRadius: 0,
+                           endCenter: SwirlGeometry.center, endRadius: SwirlGeometry.haloRadius * 1.8, options: [])
 
-    // Mesh nodes: positions in a roughly hexagonal/mesh layout
-    struct Node {
-        let x: CGFloat
-        let y: CGFloat
-    }
-
-    let nodes: [Node] = [
-        // Center
-        Node(x: 0.50, y: 0.50),
-        // Inner ring
-        Node(x: 0.50, y: 0.28),
-        Node(x: 0.69, y: 0.39),
-        Node(x: 0.69, y: 0.61),
-        Node(x: 0.50, y: 0.72),
-        Node(x: 0.31, y: 0.61),
-        Node(x: 0.31, y: 0.39),
-        // Outer accents
-        Node(x: 0.35, y: 0.20),
-        Node(x: 0.65, y: 0.20),
-        Node(x: 0.80, y: 0.50),
-        Node(x: 0.65, y: 0.80),
-        Node(x: 0.35, y: 0.80),
-        Node(x: 0.20, y: 0.50),
-    ]
-
-    // Connections (index pairs)
-    let connections: [(Int, Int)] = [
-        // Center to inner ring
-        (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6),
-        // Inner ring
-        (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 1),
-        // Inner to outer
-        (1, 7), (1, 8), (2, 8), (2, 9), (3, 9), (3, 10),
-        (4, 10), (4, 11), (5, 11), (5, 12), (6, 12), (6, 7),
-        // Outer ring partial
-        (7, 8), (9, 10), (11, 12),
-    ]
-
-    // Draw connections as glowing lines
-    for (i, j) in connections {
-        let from = CGPoint(x: nodes[i].x * size, y: nodes[i].y * size)
-        let to = CGPoint(x: nodes[j].x * size, y: nodes[j].y * size)
-
-        // Outer glow
-        ctx.setStrokeColor(CGColor(red: 0.3, green: 0.6, blue: 1.0, alpha: 0.15))
-        ctx.setLineWidth(max(size * 0.012, 1.5))
+    let white = CGColor(red: 1, green: 1, blue: 1, alpha: 1)
+    ctx.setFillColor(white)
+    ctx.setStrokeColor(white)
+    for i in 0..<3 {
+        ctx.addLines(between: SwirlGeometry.bulgeOutline(arm: i, of: 3))
+        ctx.closePath()
+        ctx.fillPath()
+        ctx.setLineWidth(SwirlGeometry.lineWidth)
         ctx.setLineCap(.round)
-        ctx.move(to: from)
-        ctx.addLine(to: to)
-        ctx.strokePath()
-
-        // Core line
-        let isInner = i == 0 || (i <= 6 && j <= 6)
-        ctx.setStrokeColor(CGColor(red: 0.4, green: 0.7, blue: 1.0, alpha: isInner ? 0.6 : 0.35))
-        ctx.setLineWidth(max(size * 0.005, 0.8))
-        ctx.move(to: from)
-        ctx.addLine(to: to)
+        ctx.setLineJoin(.round)
+        ctx.addLines(between: SwirlGeometry.linePoints(arm: i, of: 3, from: SwirlGeometry.bulgeLength - 0.01, to: 1))
         ctx.strokePath()
     }
+    let r = SwirlGeometry.coreRadius
+    ctx.fillEllipse(in: CGRect(x: 12 - r, y: 12 - r, width: 2 * r, height: 2 * r))
+    ctx.restoreGState()
 
-    // Draw nodes
-    for (idx, node) in nodes.enumerated() {
-        let pos = CGPoint(x: node.x * size, y: node.y * size)
-        let isCenter = idx == 0
-        let isInner = idx <= 6
-        let nodeRadius = isCenter ? size * 0.035 : (isInner ? size * 0.022 : size * 0.015)
+    NSGraphicsContext.restoreGraphicsState()
+    return rep
+}
 
-        // Outer glow
-        let glowRadius = nodeRadius * 3.0
-        let nodeGlowColors = [
-            CGColor(red: 0.4, green: 0.7, blue: 1.0, alpha: isCenter ? 0.5 : 0.25),
-            CGColor(red: 0.3, green: 0.5, blue: 1.0, alpha: 0.0)
-        ] as CFArray
-        if let nodeGlow = CGGradient(colorsSpace: colorSpace, colors: nodeGlowColors, locations: [0.0, 1.0]) {
-            ctx.drawRadialGradient(nodeGlow,
-                                   startCenter: pos,
-                                   startRadius: 0,
-                                   endCenter: pos,
-                                   endRadius: glowRadius,
-                                   options: [])
-        }
-
-        // Node dot
-        let nodeRect = CGRect(x: pos.x - nodeRadius, y: pos.y - nodeRadius,
-                              width: nodeRadius * 2, height: nodeRadius * 2)
-        ctx.setFillColor(CGColor(red: 0.6, green: 0.85, blue: 1.0, alpha: isCenter ? 1.0 : 0.9))
-        ctx.fillEllipse(in: nodeRect)
-
-        // Bright center highlight
-        if isCenter || isInner {
-            let highlightRadius = nodeRadius * 0.5
-            let highlightRect = CGRect(x: pos.x - highlightRadius, y: pos.y - highlightRadius,
-                                       width: highlightRadius * 2, height: highlightRadius * 2)
-            ctx.setFillColor(CGColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 0.8))
-            ctx.fillEllipse(in: highlightRect)
+@main
+struct GenerateIcon {
+    static func main() throws {
+        let outputDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "."
+        for (pt, scale) in [(16, 1), (16, 2), (32, 1), (32, 2), (128, 1), (128, 2), (256, 1), (256, 2), (512, 1), (512, 2)] {
+            let path = "\(outputDir)/icon_\(pt)x\(pt)@\(scale)x.png"
+            try drawIcon(px: pt * scale).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: path))
+            print("Wrote \(path)")
         }
     }
-
-    image.unlockFocus()
-    return image
 }
-
-func savePNG(_ image: NSImage, to path: String) {
-    guard let tiffData = image.tiffRepresentation,
-          let bitmap = NSBitmapImageRep(data: tiffData),
-          let pngData = bitmap.representation(using: .png, properties: [:]) else {
-        print("Failed to create PNG for \(path)")
-        return
-    }
-    do {
-        try pngData.write(to: URL(fileURLWithPath: path))
-        print("Wrote \(path)")
-    } catch {
-        print("Error writing \(path): \(error)")
-    }
-}
-
-// Required sizes: (point size, scale) -> pixel size
-let sizes: [(pt: Int, scale: Int)] = [
-    (16, 1), (16, 2),
-    (32, 1), (32, 2),
-    (128, 1), (128, 2),
-    (256, 1), (256, 2),
-    (512, 1), (512, 2),
-]
-
-let outputDir = CommandLine.arguments.count > 1
-    ? CommandLine.arguments[1]
-    : "."
-
-for s in sizes {
-    let px = s.pt * s.scale
-    let image = drawIcon(size: CGFloat(px))
-    let filename = "icon_\(s.pt)x\(s.pt)@\(s.scale)x.png"
-    savePNG(image, to: "\(outputDir)/\(filename)")
-}
-
-print("Done! Generated all icon sizes.")

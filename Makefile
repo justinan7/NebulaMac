@@ -17,7 +17,7 @@ endif
 # use different folders. (Recursive '=', so it's only evaluated by targets that need it.)
 BUILD_DIR = $(shell DEVELOPER_DIR="$(DEVELOPER_DIR)" swift build -c release $(ARCHS) --show-bin-path)
 
-.PHONY: build bundle install uninstall clean test release publish
+.PHONY: build bundle install uninstall clean test release publish icon
 
 build:
 	swift build -c release $(ARCHS)
@@ -70,6 +70,11 @@ uninstall:
 clean:
 	swift package clean
 	rm -rf "$(APP_BUNDLE)"
+
+icon:
+	mkdir -p .build
+	swiftc -parse-as-library -o .build/generate_icon NebulaMacCore/Swirl.swift scripts/generate_icon.swift
+	.build/generate_icon "$(ICON_SRC)"
 
 test:
 	swift test
